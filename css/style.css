@@ -1210,3 +1210,251 @@ html, body {
 
     .title { font-size: 32px; letter-spacing: 4px; }
 }
+
+/* ---- 选中武将详情面板 ---- */
+.selected-header {
+    flex-shrink: 0;
+    padding-right: var(--space-md);
+    border-right: var(--border-width) solid var(--border-light);
+}
+
+.sel-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: var(--space-xs);
+}
+
+.sel-hp-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.sel-hp-bar {
+    width: 60px;
+    height: 5px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.sel-hp-bar .sel-hp-fill {
+    height: 100%;
+    background: #5ca85c;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.sel-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: var(--space-xs);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.selected-skills {
+    display: flex;
+    gap: var(--space-sm);
+    overflow-x: auto;
+    flex: 1;
+    scrollbar-width: none;
+    align-items: flex-start;
+    padding: 2px 0;
+}
+
+.selected-skills::-webkit-scrollbar { display: none; }
+
+.skill-card {
+    flex-shrink: 0;
+    padding: var(--space-xs) var(--space-sm);
+    border: var(--border-width) solid var(--border-light);
+    min-width: 160px;
+    max-width: 200px;
+}
+
+.skill-card.active-skill {
+    border-color: var(--border-dark);
+    background: var(--bg-primary);
+}
+
+.skill-card.passive-skill {
+    border-style: dashed;
+    background: var(--bg-secondary);
+    opacity: 0.85;
+}
+
+.skill-name-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3px;
+}
+
+.skill-card .skill-name {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 0;
+}
+
+.skill-cost {
+    font-size: 11px;
+    color: #b88840;
+    font-weight: 700;
+}
+
+.skill-card .skill-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: var(--space-xs);
+}
+
+.skill-card .sel-skill-btn {
+    padding: 3px 10px;
+    font-size: 12px;
+    background: var(--bg-dark);
+    color: var(--text-inverse);
+    border: var(--border-width) solid var(--border-dark);
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    width: 100%;
+    transition: opacity 0.15s ease;
+}
+
+.skill-card .sel-skill-btn:hover { opacity: 0.85; }
+.skill-card .sel-skill-btn.disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    border-color: var(--border-light);
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+/* ---- 选将界面武将卡片详情 ---- */
+.general-info {
+    width: 100%;
+    text-align: center;
+    padding: 0 4px;
+}
+
+.general-stats {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    margin: 2px 0;
+    flex-wrap: wrap;
+}
+
+.general-stats .stat {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.3px;
+}
+
+.skill-hint {
+    font-size: 8px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    letter-spacing: 0.3px;
+}
+
+.passive-hint { color: #8050a0; }
+.active-hint { color: #4060a0; }
+
+/* ---- 顶部武将栏扩展 ---- */
+.bar-general-stats {
+    display: flex;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.bar-stat { font-size: 10px; }
+
+.bar-general-skills {
+    font-size: 9px;
+    color: var(--text-muted);
+    max-width: 60px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.bar-general.selected-bar {
+    border-color: #5ca85c !important;
+    box-shadow: 0 0 0 1px #5ca85c;
+}
+
+/* ---- 棋子上的能量显示 ---- */
+.unit-energy {
+    position: absolute;
+    top: 1px;
+    right: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #b88840;
+    z-index: 12;
+    line-height: 1;
+}
+
+.unit-skill-dot {
+    position: absolute;
+    top: 1px;
+    left: 2px;
+    font-size: 9px;
+    z-index: 12;
+    line-height: 1;
+}
+
+/* ---- AI思考提示 ---- */
+.ai-thinking {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 16px;
+    color: var(--text-muted);
+    padding: var(--space-xl);
+    letter-spacing: 2px;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* ---- 详情面板扩展 ---- */
+.detail-skill {
+    margin-bottom: var(--space-md);
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--border-medium);
+}
+
+.detail-skill-title {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: var(--space-xs);
+}
+
+.detail-skill-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: var(--space-xs);
+}
+
+.detail-skill-range {
+    font-size: 12px;
+    color: var(--text-muted);
+}
