@@ -1,162 +1,78 @@
-// ================================
-// 范围系统
-// ================================
-const BOARD_SIZE = 12;
-window.BOARD_SIZE = BOARD_SIZE;
+// range.js - 范围解析工具（纯函数）
+// 支持 rangeStr 格式：
+//   "+N"  : 十字扩散 N 格（曼哈顿距离 ≤ N，用于移动）
+//   "rN"  : 以目标为中心的 N 格半径（曼哈顿距离 ≤ N，用于技能AOE/攻击范围）
+//   "xN"  : 对角线 N 格
+//   "crossN" / "cN" : 十字 N 格（上下左右各 N 格）
+// 注意：terrain 中 0=草地(通行) 1=山(阻挡) 2=河(阻挡) 3=城(通行) 4=沼(通行) 5=桥(通行)
+// BLOCKING_TERRAIN_MOVE = {1, 2} （阻挡移动）
+// BLOCKING_TERRAIN_ATTACK = {1} （阻挡攻击视线）
 
-// 地形阻断辅助: 检查某坐标是否被指定地形集合阻断
-function isTerrainBlocked(x, y, terrainSet, terrainMap) {
-    if (!terrainSet || !terrainMap) return false;
-    const tid = terrainMap[y] && terrainMap[y][x];
-    return terrainSet.has(tid);
-}
+window.Range = {
+    parse(rangeStr, x, y, blockingSet, terrain) {
+        return this._computeCells(rangeStr, x, y, blockingSet, terrain, false);
+    },
 
-const Range = {
-    plusBlocked(n, x, y, blockedSet, terrainBlockSet, terrainMap) {
-        const result = [];
-        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-        for (const dir of dirs) {
-            for (let i = 1; i <= n; i++) {
-                const px = x + dir.dx * i;
-                const py = y + dir.dy * i;
-                if (px < 0 || px >= BOARD_SIZE || py < 0 || py >= BOARD_SIZE) break;
-                result.push({ x: px, y: py });
-                if (blockedSet.has(`${px},${py}`)) break;
-                if (isTerrainBlocked(px, py, terrainBlockSet, terrainMap)) break;
-            }
-        }
-        return result;
+    parseBlocked(rangeStr, x, y, occupiedSet, blockingSet, terrain) {
+        // 与 parse 类似，但额外排除被占据的格子（用于移动，目标不能站人）
+        return this._computeCells(rangeStr, x, y, blockingSet, terrain, false, occupiedSet);
     },
-    xBlocked(n, x, y, blockedSet, terrainBlockSet, terrainMap) {
-        const result = [];
-        const dirs = [{dx:1,dy:1},{dx:-1,dy:1},{dx:1,dy:-1},{dx:-1,dy:-1}];
-        for (const dir of dirs) {
-            for (let i = 1; i <= n; i++) {
-                const px = x + dir.dx * i;
-                const py = y + dir.dy * i;
-                if (px < 0 || px >= BOARD_SIZE || py < 0 || py >= BOARD_SIZE) break;
-                result.push({ x: px, y: py });
-                if (blockedSet.has(`${px},${py}`)) break;
-                if (isTerrainBlocked(px, py, terrainBlockSet, terrainMap)) break;
-            }
-        }
-        return result;
-    },
-    rBlocked(n, x, y, blockedSet, terrainBlockSet, terrainMap) {
-        const result = [];
-        const visited = new Set();
-        visited.add(`${x},${y}`);
-        let frontier = [{x, y, d:0}];
-        while (frontier.length > 0) {
-            const next = [];
-            for (const cur of frontier) {
-                if (cur.d >= n) continue;
-                const neighs = [
-                    {x: cur.x+1, y: cur.y}, {x: cur.x-1, y: cur.y},
-                    {x: cur.x, y: cur.y+1}, {x: cur.x, y: cur.y-1}
-                ];
-                for (const nb of neighs) {
-                    const key = `${nb.x},${nb.y}`;
-                    if (nb.x < 0 || nb.x >= BOARD_SIZE || nb.y < 0 || nb.y >= BOARD_SIZE) continue;
-                    if (visited.has(key)) continue;
-                    visited.add(key);
-                    result.push({ x: nb.x, y: nb.y });
-                    if (blockedSet.has(key)) continue;
-                    if (isTerrainBlocked(nb.x, nb.y, terrainBlockSet, terrainMap)) continue;
-                    next.push({x: nb.x, y: nb.y, d: cur.d + 1});
+
+    _computeCells(rangeStr, x, y, blockingSet, terrain, bfsMode, occupiedSet) {
+        const s = String(rangeStr || '').trim().toLowerCase();
+        const BS = window.BOARD_SIZE || 12;
+        const m = s.match(/^([+xr]|cross|c)(\d+)$/);
+        if (!m) return [{ x, y }];
+
+        const kind = m[1];
+        const size = parseInt(m[2], 10);
+        const cells = [];
+
+        if (kind === '+') {
+            for (let dy = -size; dy <= size; dy++) {
+                for (let dx = -size; dx <= size; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    if (Math.abs(dx) + Math.abs(dy) > size) continue;
+                    const nx = x + dx, ny = y + dy;
+                    if (nx < 0 || nx >= BS || ny < 0 || ny >= BS) continue;
+                    if (blockingSet && terrain && terrain[ny] && blockingSet.has(terrain[ny][nx])) continue;
+                    if (occupiedSet && occupiedSet.has(nx + ',' + ny)) continue;
+                    cells.push({ x: nx, y: ny });
                 }
             }
-            frontier = next;
-        }
-        return result.filter(p => !(p.x === x && p.y === y));
-    },
-    plus(n, x, y, terrainBlockSet, terrainMap) {
-        const result = [];
-        for (let i = 1; i <= n; i++) {
-            result.push({ x: x + i, y });
-            result.push({ x: x - i, y });
-            result.push({ x, y: y + i });
-            result.push({ x, y: y - i });
-        }
-        return result.filter(p => {
-            if (p.x < 0 || p.x >= BOARD_SIZE || p.y < 0 || p.y >= BOARD_SIZE) return false;
-            return !isTerrainBlocked(p.x, p.y, terrainBlockSet, terrainMap);
-        });
-    },
-    x(n, x, y, terrainBlockSet, terrainMap) {
-        const result = [];
-        for (let i = 1; i <= n; i++) {
-            result.push({ x: x + i, y: y + i });
-            result.push({ x: x - i, y: y + i });
-            result.push({ x: x + i, y: y - i });
-            result.push({ x: x - i, y: y - i });
-        }
-        return result.filter(p => {
-            if (p.x < 0 || p.x >= BOARD_SIZE || p.y < 0 || p.y >= BOARD_SIZE) return false;
-            return !isTerrainBlocked(p.x, p.y, terrainBlockSet, terrainMap);
-        });
-    },
-    r(n, x, y, terrainBlockSet, terrainMap) {
-        const result = [];
-        for (let dy = -n; dy <= n; dy++) {
-            for (let dx = -n; dx <= n; dx++) {
-                if (dx === 0 && dy === 0) continue;
-                if (Math.abs(dx) + Math.abs(dy) <= n) {
-                    result.push({ x: x + dx, y: y + dy });
+        } else if (kind === 'r') {
+            for (let dy = -size; dy <= size; dy++) {
+                for (let dx = -size; dx <= size; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    if (Math.abs(dx) + Math.abs(dy) > size) continue;
+                    const nx = x + dx, ny = y + dy;
+                    if (nx < 0 || nx >= BS || ny < 0 || ny >= BS) continue;
+                    cells.push({ x: nx, y: ny });
                 }
             }
-        }
-        return result.filter(p => {
-            if (p.x < 0 || p.x >= BOARD_SIZE || p.y < 0 || p.y >= BOARD_SIZE) return false;
-            return !isTerrainBlocked(p.x, p.y, terrainBlockSet, terrainMap);
-        });
-    },
-    parseBlocked(rangeInput, x, y, blockedSet, terrainBlockSet, terrainMap) {
-        const ranges = Array.isArray(rangeInput) ? rangeInput : [rangeInput];
-        const result = [];
-        const seen = new Set();
-        for (const rangeStr of ranges) {
-            const match = String(rangeStr).match(/^([+xr])(\d+)$/);
-            if (!match) continue;
-            const type = match[1];
-            const n = parseInt(match[2]);
-            let pts = [];
-            if (type === '+') pts = this.plusBlocked(n, x, y, blockedSet, terrainBlockSet, terrainMap);
-            else if (type === 'x') pts = this.xBlocked(n, x, y, blockedSet, terrainBlockSet, terrainMap);
-            else if (type === 'r') pts = this.rBlocked(n, x, y, blockedSet, terrainBlockSet, terrainMap);
-            for (const p of pts) {
-                const key = `${p.x},${p.y}`;
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    result.push(p);
-                }
+        } else if (kind === 'x') {
+            for (let i = 1; i <= size; i++) {
+                [[x + i, y + i], [x - i, y + i], [x + i, y - i], [x - i, y - i]].forEach(([nx, ny]) => {
+                    if (nx < 0 || nx >= BS || ny < 0 || ny >= BS) return;
+                    if (blockingSet && terrain && terrain[ny] && blockingSet.has(terrain[ny][nx])) return;
+                    cells.push({ x: nx, y: ny });
+                });
+            }
+        } else if (kind === 'cross' || kind === 'c') {
+            for (let i = 1; i <= size; i++) {
+                [[x + i, y], [x - i, y], [x, y + i], [x, y - i]].forEach(([nx, ny]) => {
+                    if (nx < 0 || nx >= BS || ny < 0 || ny >= BS) return;
+                    if (blockingSet && terrain && terrain[ny] && blockingSet.has(terrain[ny][nx])) return;
+                    cells.push({ x: nx, y: ny });
+                });
             }
         }
-        return result;
+        return cells;
     },
-    parse(rangeInput, x, y, terrainBlockSet, terrainMap) {
-        const ranges = Array.isArray(rangeInput) ? rangeInput : [rangeInput];
-        const result = [];
-        const seen = new Set();
-        for (const rangeStr of ranges) {
-            const match = String(rangeStr).match(/^([+xr])(\d+)$/);
-            if (!match) continue;
-            const type = match[1];
-            const n = parseInt(match[2]);
-            let pts = [];
-            if (type === '+') pts = this.plus(n, x, y, terrainBlockSet, terrainMap);
-            else if (type === 'x') pts = this.x(n, x, y, terrainBlockSet, terrainMap);
-            else if (type === 'r') pts = this.r(n, x, y, terrainBlockSet, terrainMap);
-            for (const p of pts) {
-                const key = `${p.x},${p.y}`;
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    result.push(p);
-                }
-            }
-        }
-        return result;
+
+    // 计算从起点到目标是否可达（简单曼哈顿距离内，且无阻挡）
+    reachableInRange(rangeStr, fromX, fromY, toX, toY, blockingSet, terrain) {
+        const cells = this.parse(rangeStr, fromX, fromY, blockingSet, terrain);
+        return cells.some(c => c.x === toX && c.y === toY);
     }
 };
-
-window.Range = Range;
