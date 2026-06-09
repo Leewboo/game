@@ -2,6 +2,129 @@
 // 游戏逻辑
 // ================================
 
+// 确保全局 Effect 对象存在 —— 若 effect.js 加载失败/缓存过期，使用兜底实现
+(function ensureEffect() {
+    if (!window.Effect || typeof window.Effect !== 'object') {
+        window.Effect = {};
+    }
+    const fallback = {
+        damage(a, t, v) {
+            const dmg = Math.max(1, Math.floor((v || 10) - (t.def || 0) * 0.3));
+            t.hp -= dmg;
+            if (t.hp <= 0) { t.hp = 0; t.dead = true; }
+            let counter = null;
+            if (t.counterRate && !t.dead && Math.random() < t.counterRate) {
+                const cd = Math.max(1, Math.floor((t.atk || 0) * 0.5 - (a.def || 0) * 0.3));
+                a.hp -= cd;
+                if (a.hp <= 0) { a.hp = 0; a.dead = true; }
+                counter = cd;
+            }
+            return { damage: dmg, type: 'damage', counter };
+        },
+        heal(t, v) { t.hp = Math.min(t.maxHp, t.hp + v); return { heal: v, type: 'heal' }; },
+        aoe(a, list, v, gs) {
+            let total = 0; const details = [];
+            list.forEach(e => { if (!e.dead) { const r = this.damage(a, e, v); total += r.damage; details.push({ name: e.name, ...r }); } });
+            return { damage: total, type: 'aoe', targets: details };
+        },
+        pierce(a, tx, ty, v, gs) {
+            const dx = Math.sign(tx - a.x) || 1, dy = Math.sign(ty - a.y) || 0;
+            let total = 0; const details = [];
+            for (let i = 1; i <= (window.BOARD_SIZE || 12); i++) {
+                const nx = a.x + dx * i, ny = a.y + dy * i;
+                if (nx < 0 || ny < 0 || nx >= (window.BOARD_SIZE || 12) || ny >= (window.BOARD_SIZE || 12)) break;
+                const hit = gs.units.find(u => u.x === nx && u.y === ny && !u.dead && u.player !== a.player);
+                if (hit) { const r = this.damage(a, hit, v); total += r.damage; details.push({ name: hit.name, ...r }); }
+            }
+            return { damage: total, type: 'pierce', targets: details };
+        },
+        summon(a, x, y, kind, gs) {
+            const sd = (window.SUMMONS || {})[kind];
+            if (!sd) return null;
+            const unit = { id: Math.random(), name: sd.name, player: a.player, x, y, hp: sd.hp, maxHp: sd.hp, atk: sd.atk, def: sd.def, mov: sd.mov, moveRange: '+' + sd.mov, attackRange: '+1', energy: 0, skills: [], dead: false, isSummon: true };
+            gs.units.push(unit);
+            return { unit, type: 'summon' };
+        },
+        move(u, x, y) { u.x = x; u.y = y; return { type: 'move', x, y }; },
+        poison(t, v, turns) { if (!t.debuffs) t.debuffs = []; t.debuffs.push({ type: 'poison', damage: v, turns: turns || 3 }); return { type: 'poison', damage: v, turns: turns || 3 }; },
+        stun(t, turns) { if (!t.debuffs) t.debuffs = []; t.debuffs.push({ type: 'stun', turns: turns || 1 }); t.stunned = turns || 1; return { type: 'stun', turns: turns || 1 }; },
+        slow(t, amt, turns) { if (!t.debuffs) t.debuffs = []; t.debuffs.push({ type: 'slow', amount: amt, turns: turns || 2, originalMov: t.mov }); t.mov = Math.max(1, t.mov - amt); return { type: 'slow', amount: amt, turns: turns || 2 }; },
+        burn(t, v, turns) { if (!t.debuffs) t.debuffs = []; t.debuffs.push({ type: 'burn', damage: v, turns: turns || 2 }); return { type: 'burn', damage: v, turns: turns || 2 }; },
+        confuse(t, turns) { if (!t.debuffs) t.debuffs = []; t.debuffs.push({ type: 'confuse', turns: turns || 1 }); t.confused = turns || 1; return { type: 'confuse', turns: turns || 1 }; },
+        silence(t, turns) { if (!t.debuffs) t.debuffs = []; t.debuffs.push({ type: 'silence', turns: turns || 1 }); t.silenced = turns || 1; return { type: 'silence', turns: turns || 1 }; },
+        shredDef(t, v, turns) { if (!t.debuffs) t.debuffs = []; t.debuffs.push({ type: 'shredDef', value: v, turns: turns || 1, originalDef: t.def }); t.def = Math.max(0, t.def - v); return { type: 'shredDef', value: v, turns: turns || 1 }; },
+        grantExtraAction(t) { t.moved = false; t.attacked = false; return { type: 'extraAction' }; },
+        applyPassiveFlags(u, list) { (list || []).forEach(e => { if (e.flag) u[e.flag] = e.value; if (e.stat && typeof e.modify === 'number') u[e.stat] = (u[e.stat] || 0) + e.modify; }); }
+    };
+    Object.keys(fallback).forEach(k => {
+        if (!window.Effect[k] || typeof window.Effect[k] !== 'function') window.Effect[k] = fallback[k].bind(window.Effect);
+    });
+})();
+
+// 确保全局 Range 对象存在
+(function ensureRange() {
+    if (!window.Range || typeof window.Range !== 'object') window.Range = {};
+    const fallbackRange = {
+        _buildPlus(size, cx, cy) {
+            const cells = [];
+            for (let i = 1; i <= size; i++) {
+                cells.push({ x: cx + i, y: cy }, { x: cx - i, y: cy });
+                cells.push({ x: cx, y: cy + i }, { x: cx, y: cy - i });
+            }
+            return cells;
+        },
+        _buildX(size, cx, cy) {
+            const cells = [];
+            for (let i = 1; i <= size; i++) {
+                cells.push({ x: cx + i, y: cy + i }, { x: cx - i, y: cy + i });
+                cells.push({ x: cx + i, y: cy - i }, { x: cx - i, y: cy - i });
+            }
+            return cells;
+        },
+        _buildR(size, cx, cy) {
+            const cells = [];
+            for (let dy = -size; dy <= size; dy++) {
+                for (let dx = -size; dx <= size; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    if (Math.abs(dx) + Math.abs(dy) <= size) cells.push({ x: cx + dx, y: cy + dy });
+                }
+            }
+            return cells;
+        },
+        parse(spec, cx, cy, blocking, terrain) {
+            if (!spec) return [];
+            if (Array.isArray(spec)) {
+                const arr = [];
+                spec.forEach(s => arr.push(...this.parse(s, cx, cy, blocking, terrain)));
+                return arr;
+            }
+            let cells = [];
+            const m = String(spec).match(/^([+xr])(\d+)$/);
+            if (!m) return [];
+            const kind = m[1], size = parseInt(m[2]);
+            if (kind === '+') cells = this._buildPlus(size, cx, cy);
+            if (kind === 'x') cells = this._buildX(size, cx, cy);
+            if (kind === 'r') cells = this._buildR(size, cx, cy);
+            const BS = window.BOARD_SIZE || 12;
+            return cells.filter(c => c.x >= 0 && c.x < BS && c.y >= 0 && c.y < BS);
+        },
+        parseBlocked(spec, cx, cy, blockedSet, blockingTerrain, terrain) {
+            const raw = this.parse(spec, cx, cy, blockingTerrain, terrain);
+            if (!blockingTerrain && !blockedSet) return raw;
+            const BS = window.BOARD_SIZE || 12;
+            return raw.filter(c => {
+                if (c.x < 0 || c.x >= BS || c.y < 0 || c.y >= BS) return false;
+                if (blockingTerrain && terrain && terrain[c.y] && blockingTerrain.has(terrain[c.y][c.x])) return false;
+                if (blockedSet && blockedSet.has(c.x + ',' + c.y)) return false;
+                return true;
+            });
+        }
+    };
+    ['_buildPlus', '_buildX', '_buildR', 'parse', 'parseBlocked'].forEach(k => {
+        if (!window.Range[k] || typeof window.Range[k] !== 'function') window.Range[k] = fallbackRange[k].bind(window.Range);
+    });
+})();
+
 const Game = {
     state: {
         mode: 'pvp',
