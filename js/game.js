@@ -27,6 +27,19 @@ const Game = {
         console.log('[Game] init done');
     },
 
+    getEffect() {
+        return window.Effect && typeof window.Effect === 'object' ? window.Effect : null;
+    },
+
+    safeEffectCall(methodName, ...args) {
+        const effect = this.getEffect();
+        if (effect && typeof effect[methodName] === 'function') {
+            return effect[methodName](...args);
+        }
+        console.warn(`[Game] Effect.${methodName} not available, skipping`);
+        return null;
+    },
+
     showScreen(screenId) {
         const screens = document.querySelectorAll('.screen');
         screens.forEach(s => s.classList.remove('active'));
@@ -334,14 +347,46 @@ const Game = {
     // 初始化被动技能效果
     initPassiveSkills(unit) {
         if (!unit.skills) return;
+        
         const passiveSkills = unit.skills.filter(s => s.type === 'passive');
         passiveSkills.forEach(skill => {
             if (skill.effects) {
                 skill.effects.forEach(effect => {
-                    window.Effect.executeEffect(effect, unit, unit, this.state);
+                    if (window.Effect && typeof window.Effect.executeEffect === 'function') {
+                        window.Effect.executeEffect(effect, unit, unit, this.state);
+                    } else {
+                        this.applyPassiveEffectFallback(unit, effect);
+                    }
                 });
             }
         });
+    },
+
+    applyPassiveEffectFallback(unit, effect) {
+        if (!effect) return;
+        
+        const { type, flag, value, stat, modify } = effect;
+        
+        if (type === 'passive') {
+            if (flag) {
+                unit[flag] = value;
+            }
+            
+            if (stat && modify) {
+                if (stat === 'attackRange' && typeof modify === 'string' && modify.startsWith('+')) {
+                    const add = parseInt(modify.substring(1));
+                    const current = unit.attackRange || '+1';
+                    const match = current.match(/^([+xr])(\d+)$/);
+                    if (match) {
+                        const type = match[1];
+                        const num = parseInt(match[2]) + add;
+                        unit.attackRange = type + num;
+                    }
+                } else if (typeof modify === 'number') {
+                    unit[stat] = (unit[stat] || 0) + modify;
+                }
+            }
+        }
     },
 
     // 从武将数据创建战斗单位
@@ -683,7 +728,7 @@ const Game = {
 
             // 执行技能效果
             this.state._target = target;
-            const result = window.Effect.executeEffects(skill.effects, attacker, target, this.state, { x, y });
+            const result = this.safeEffectCall('executeEffects', skill.effects, attacker, target, this.state, { x, y });
             this.state._target = null;
 
             // 处理结果
@@ -718,7 +763,7 @@ const Game = {
         // 普通攻击
         if (hlAttack && this.state.selectedUnit && unit && unit.player !== this.state.selectedUnit.player) {
             const attacker = this.state.selectedUnit;
-            const result = window.Effect.damage(attacker, unit, attacker.atk);
+            const result = this.safeEffectCall('damage', attacker, unit, attacker.atk);
             this.addLungeAnimation(attacker, unit);
             let extraActionGranted = false;
 
@@ -746,7 +791,7 @@ const Game = {
             }
 
             if (extraActionGranted) {
-                window.Effect.grantExtraAction(attacker);
+                this.safeEffectCall('grantExtraAction', attacker);
                 this.state.logs.push(`${attacker.name} 常胜！获得额外行动`);
                 this.showFloatingText(attacker.x, attacker.y, '常胜！', 'heal');
             } else {
@@ -789,7 +834,7 @@ const Game = {
 
             // 执行技能效果
             this.state._target = unit;
-            const result = window.Effect.executeEffects(skill.effects, attacker, unit, this.state);
+            const result = this.safeEffectCall('executeEffects', skill.effects, attacker, unit, this.state);
             this.state._target = null;
 
             // 处理结果
@@ -876,7 +921,7 @@ const Game = {
         }
 
         if (extraActionGranted) {
-            window.Effect.grantExtraAction(attacker);
+            this.safeEffectCall('grantExtraAction', attacker);
             this.state.logs.push(`${attacker.name} 常胜！获得额外行动`);
             this.showFloatingText(attacker.x, attacker.y, '常胜！', 'heal');
         } else {
@@ -1070,7 +1115,7 @@ const Game = {
                     }
                     const inRange1 = auraRange1.find(p => p.x === enemy.x && p.y === enemy.y);
                     if (inRange1 && !enemy.silenced) {
-                        window.Effect.silence(u, enemy, 1);
+                        this.safeEffectCall('silence', u, enemy, 1);
                     }
                 });
             }
