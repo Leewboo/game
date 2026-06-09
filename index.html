@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>全将战棋</title>
     <link rel="stylesheet" href="css/style.css">
+    <!-- vConsole 移动端调试工具 -->
+    <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
 </head>
 <body>
     <div id="app">
@@ -103,6 +105,13 @@
         </div>
     </div>
 
+    <script>
+        // 初始化 vConsole（移动端调试面板）
+        window.vConsole = new window.VConsole({
+            theme: 'light'
+        });
+        console.log('[Game] vConsole 已初始化，移动端可点击右下角按钮打开调试面板');
+    </script>
     <script src="js/range.js"></script>
     <script src="js/effect.js"></script>
     <script src="js/skill.js"></script>
