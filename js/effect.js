@@ -2,9 +2,12 @@
 // 效果系统 - 软编码支持
 // ================================
 
-const Effect = {
+window.Effect = {
     // 解析并执行效果列表
     executeEffects(effects, attacker, target, gameState, extraData = {}) {
+        if (!effects || effects.length === 0) {
+            return null;
+        }
         const results = [];
         for (const effect of effects) {
             const result = this.executeEffect(effect, attacker, target, gameState, extraData);
@@ -15,6 +18,9 @@ const Effect = {
 
     // 执行单个效果
     executeEffect(effect, attacker, target, gameState, extraData = {}) {
+        if (!effect || !effect.type) {
+            return null;
+        }
         switch (effect.type) {
             case 'damage':
                 return this.damage(attacker, target, effect.damage, effect, gameState);
@@ -39,14 +45,13 @@ const Effect = {
             case 'passive':
                 return this.applyPassive(attacker, effect);
             default:
-                console.warn('[Effect] Unknown effect type:', effect.type);
                 return null;
         }
     },
 
     // 合并多个结果
     mergeResults(results) {
-        if (results.length === 0) return null;
+        if (!results || results.length === 0) return null;
         if (results.length === 1) return results[0];
 
         const merged = { type: 'combined' };
@@ -61,40 +66,34 @@ const Effect = {
 
     // 伤害效果
     damage(attacker, target, baseDamage, effectConfig = {}, gameState) {
-        let damage = baseDamage;
+        if (!target) return { damage: 0, type: 'damage' };
+        
+        let damage = baseDamage || 0;
 
-        // 地形加成
-        if (effectConfig.terrainBonus) {
-            const terrainId = gameState.TERRAIN?.[target.y]?.[target.x];
+        if (effectConfig.terrainBonus && gameState && gameState.TERRAIN) {
+            const terrainId = gameState.TERRAIN[target.y]?.[target.x];
             if (terrainId === effectConfig.terrainBonus.terrain) {
-                damage *= effectConfig.terrainBonus.multiplier;
-                if (!gameState._terrainBonus) gameState._terrainBonus = true;
+                damage *= effectConfig.terrainBonus.multiplier || 1;
             }
         }
 
-        // 条件加成（如目标有燃烧效果）
-        if (effectConfig.conditionBonus) {
-            if (effectConfig.conditionBonus.debuff === 'burn' && target.debuffs) {
+        if (effectConfig.conditionBonus && target.debuffs) {
+            if (effectConfig.conditionBonus.debuff === 'burn') {
                 const hasBurn = target.debuffs.find(d => d.type === 'burn');
                 if (hasBurn) {
-                    damage *= effectConfig.conditionBonus.multiplier;
+                    damage *= effectConfig.conditionBonus.multiplier || 1;
                 }
             }
         }
 
-        // 生命值百分比加成
         if (effectConfig.hpPercentBonus) {
             const missingHp = 1 - (attacker.hp / attacker.maxHp);
             damage += Math.floor(missingHp * effectConfig.hpPercentBonus);
         }
 
-        // 被动效果：奸雄
-        if (attacker._passive_jianXiong) {
-            // 先记录伤害前的生命值
-        }
-
-        damage = Math.max(1, Math.floor(damage - target.def * 0.3));
-        target.hp -= damage;
+        const def = target.def || 0;
+        damage = Math.max(1, Math.floor(damage - def * 0.3));
+        target.hp = target.hp - damage;
 
         if (target.hp <= 0) {
             target.hp = 0;
@@ -103,15 +102,14 @@ const Effect = {
 
         let counter = null;
         if (target.counterRate && !target.dead && Math.random() < target.counterRate) {
-            const counterDmg = Math.max(1, Math.floor(target.atk * 0.5 - attacker.def * 0.3));
-            attacker.hp -= counterDmg;
+            const counterDmg = Math.max(1, Math.floor((target.atk || 0) * 0.5 - (attacker.def || 0) * 0.3));
+            attacker.hp = (attacker.hp || 0) - counterDmg;
             if (attacker.hp <= 0) { attacker.hp = 0; attacker.dead = true; }
             counter = counterDmg;
         }
 
-        // 被动效果：奸雄 - 回复伤害量的生命
         if (attacker._passive_jianXiong) {
-            attacker.hp = Math.min(attacker.maxHp, attacker.hp + damage);
+            attacker.hp = Math.min(attacker.maxHp || attacker.hp, attacker.hp + damage);
         }
 
         return { damage, type: 'damage', counter };
@@ -119,16 +117,13 @@ const Effect = {
 
     // 治疗效果
     heal(attacker, target, amount, effectConfig = {}, gameState) {
-        // 如果配置了目标类型，可能需要找到正确的目标
         let realTarget = target;
-        if (effectConfig.targetType === 'ally') {
-            // 友方治疗可能是自己
-            if (target.player !== attacker.player) {
-                realTarget = attacker; // 治疗自己
-            }
+        if (effectConfig.targetType === 'ally' && target && target.player !== attacker.player) {
+            realTarget = attacker;
         }
-
-        const healAmount = Math.min(amount, realTarget.maxHp - realTarget.hp);
+        if (!realTarget) return { heal: 0, type: 'heal' };
+        
+        const healAmount = Math.min(amount, (realTarget.maxHp || realTarget.hp) - realTarget.hp);
         realTarget.hp += healAmount;
         return { heal: healAmount, type: 'heal' };
     },
@@ -151,8 +146,7 @@ const Effect = {
     // 减益效果
     debuff(attacker, target, effectConfig, gameState) {
         const { debuffType, ...params } = effectConfig;
-
-        if (!target.debuffs) target.debuffs = [];
+        if (!target) return null;
 
         switch (debuffType) {
             case 'poison':
@@ -176,11 +170,8 @@ const Effect = {
 
     // 召唤效果
     summon(attacker, x, y, unitType, gameState) {
-        const summonData = window.SUMMONS?.[unitType];
-        if (!summonData) {
-            console.warn('[Effect] Unknown summon unit:', unitType);
-            return null;
-        }
+        const summonData = (window.SUMMONS || {})[unitType];
+        if (!summonData || !gameState || !gameState.units) return null;
 
         const unit = {
             id: Date.now() + Math.random(),
@@ -208,6 +199,8 @@ const Effect = {
 
     // 范围伤害（AOE）
     aoe(attacker, target, effectConfig, gameState) {
+        if (!target || !gameState || !gameState.units) return { damage: 0, type: 'aoe' };
+        
         const { damage, range = 1 } = effectConfig;
         const targets = gameState.units.filter(u =>
             !u.dead &&
@@ -228,15 +221,21 @@ const Effect = {
 
     // 穿透伤害
     pierce(attacker, effectConfig, gameState) {
+        if (!gameState || !gameState.units) return { damage: 0, type: 'pierce' };
+        
         const { damage } = effectConfig;
-        const dx = Math.sign(gameState._target?.x - attacker.x) || 1;
-        const dy = Math.sign(gameState._target?.y - attacker.y) || 0;
+        const target = gameState._target;
+        if (!target) return { damage: 0, type: 'pierce' };
+        
+        const dx = Math.sign(target.x - attacker.x) || 1;
+        const dy = Math.sign(target.y - attacker.y) || 0;
+        const boardSize = window.BOARD_SIZE || 12;
 
         const details = [];
         let total = 0;
-        for (let i = 1; i <= 12; i++) {
+        for (let i = 1; i <= boardSize; i++) {
             const tx = attacker.x + dx * i, ty = attacker.y + dy * i;
-            if (tx < 0 || tx >= window.BOARD_SIZE || ty < 0 || ty >= window.BOARD_SIZE) break;
+            if (tx < 0 || tx >= boardSize || ty < 0 || ty >= boardSize) break;
             const hit = gameState.units.find(u => u.x === tx && u.y === ty && !u.dead && u.player !== attacker.player);
             if (hit) {
                 const r = this.damage(attacker, hit, damage, {}, gameState);
@@ -249,20 +248,24 @@ const Effect = {
 
     // 多重射击
     multishot(attacker, target, effectConfig, gameState) {
+        if (!target) return { damage: 0, type: 'multishot' };
+        
         const { times, damagePerShot } = effectConfig;
         const details = [];
         let total = 0;
         for (let i = 0; i < times; i++) {
+            if (target.dead) break;
             const r = this.damage(attacker, target, damagePerShot, {}, gameState);
             total += r.damage;
             details.push(r);
-            if (target.dead) break;
         }
         return { damage: total, type: 'multishot', hits: details.length, details };
     },
 
     // 扇形攻击
     cone(attacker, effectConfig, gameState) {
+        if (!gameState || !gameState.units) return { damage: 0, type: 'cone' };
+        
         const { damage, range = 2 } = effectConfig;
         const targets = gameState.units.filter(u =>
             !u.dead &&
@@ -283,15 +286,17 @@ const Effect = {
 
     // 移动效果
     move(unit, x, y) {
-        if (x !== undefined && y !== undefined) {
+        if (unit && x !== undefined && y !== undefined) {
             unit.x = x;
             unit.y = y;
         }
-        return { type: 'move', x: unit.x, y: unit.y };
+        return { type: 'move', x: unit?.x, y: unit?.y };
     },
 
     // 应用被动效果
     applyPassive(unit, effectConfig) {
+        if (!unit || !effectConfig) return { type: 'passive' };
+        
         const { flag, value, stat, modify } = effectConfig;
 
         if (flag) {
@@ -318,6 +323,7 @@ const Effect = {
 
     // 状态效果 - 中毒
     poison(attacker, target, damage = 10, turns = 3) {
+        if (!target) return { type: 'poison', damage: 0, turns };
         if (!target.debuffs) target.debuffs = [];
         target.debuffs.push({ type: 'poison', damage, turns });
         return { type: 'poison', damage, turns };
@@ -325,6 +331,7 @@ const Effect = {
 
     // 状态效果 - 眩晕
     stun(attacker, target, turns = 1) {
+        if (!target) return { type: 'stun', turns };
         if (!target.debuffs) target.debuffs = [];
         target.debuffs.push({ type: 'stun', turns });
         target.stunned = turns;
@@ -333,6 +340,7 @@ const Effect = {
 
     // 状态效果 - 减速
     slow(attacker, target, amount = 1, turns = 2) {
+        if (!target) return { type: 'slow', amount: 0, turns };
         if (!target.debuffs) target.debuffs = [];
         target.debuffs.push({ type: 'slow', amount, turns, originalMov: target.mov });
         target.mov = Math.max(1, target.mov - amount);
@@ -341,6 +349,7 @@ const Effect = {
 
     // 状态效果 - 破甲
     shredDef(attacker, target, amount = 10, turns = 1) {
+        if (!target) return { type: 'shredDef', value: 0, turns };
         if (!target.debuffs) target.debuffs = [];
         target.debuffs.push({ type: 'shredDef', value: amount, turns, originalDef: target.def });
         target.def = Math.max(0, target.def - amount);
@@ -349,6 +358,7 @@ const Effect = {
 
     // 状态效果 - 燃烧
     burn(attacker, target, damage = 15, turns = 2) {
+        if (!target) return { type: 'burn', damage: 0, turns };
         if (!target.debuffs) target.debuffs = [];
         target.debuffs.push({ type: 'burn', damage, turns });
         return { type: 'burn', damage, turns };
@@ -356,6 +366,7 @@ const Effect = {
 
     // 状态效果 - 混乱
     confuse(attacker, target, turns = 1) {
+        if (!target) return { type: 'confuse', turns };
         if (!target.debuffs) target.debuffs = [];
         target.debuffs.push({ type: 'confuse', turns });
         target.confused = turns;
@@ -364,6 +375,7 @@ const Effect = {
 
     // 状态效果 - 沉默
     silence(attacker, target, turns = 1) {
+        if (!target) return { type: 'silence', turns };
         if (!target.debuffs) target.debuffs = [];
         target.debuffs.push({ type: 'silence', turns });
         target.silenced = turns;
@@ -372,46 +384,52 @@ const Effect = {
 
     // 设置反击率
     setCounterRate(target, rate) {
+        if (!target) return { type: 'counterRate', rate: 0 };
         target.counterRate = rate;
         return { type: 'counterRate', rate };
     },
 
     // 设置闪避率
     setDodgeRate(target, rate) {
+        if (!target) return { type: 'dodgeRate', rate: 0 };
         target.dodgeRate = rate;
         return { type: 'dodgeRate', rate };
     },
 
-    // 突进伤害：先位移到指定位置，再对目标造成伤害
+    // 突进伤害
     dashDamage(attacker, target, damage, toX, toY) {
-        attacker.x = toX;
-        attacker.y = toY;
+        if (attacker) {
+            attacker.x = toX;
+            attacker.y = toY;
+        }
         return this.damage(attacker, target, damage, {}, null);
     },
 
     // 立即获得一次额外行动机会
     grantExtraAction(target) {
-        target.moved = false;
-        target.attacked = false;
+        if (target) {
+            target.moved = false;
+            target.attacked = false;
+        }
         return { type: 'extraAction' };
     },
 
-    // 选择落点：返回目标周围指定范围内的空格列表
+    // 选择落点
     selectLanding(target, rangeStr, gameState) {
-        const { Range } = gameState._modules || {};
-        if (!Range) return { type: 'selectLanding', positions: [] };
-        const positions = Range.parse(rangeStr, target.x, target.y).filter(p => {
+        if (!target || !gameState || !gameState.units) return { type: 'selectLanding', positions: [] };
+        const positions = window.Range ? window.Range.parse(rangeStr, target.x, target.y) : [];
+        const validPositions = positions.filter(p => {
             return !gameState.units.find(u => u.x === p.x && u.y === p.y && !u.dead);
         });
-        return { type: 'selectLanding', positions, target };
+        return { type: 'selectLanding', positions: validPositions, target };
     },
 
     // 移动到指定坐标
     moveTo(unit, x, y) {
-        unit.x = x;
-        unit.y = y;
+        if (unit) {
+            unit.x = x;
+            unit.y = y;
+        }
         return { type: 'moveTo', x, y };
     }
 };
-
-window.Effect = Effect;

@@ -21,6 +21,8 @@ const Game = {
 
     init() {
         console.log('[Game] init called');
+        console.log('[Game] window.Effect:', window.Effect);
+        console.log('[Game] window.Range:', window.Range);
         this.state._modules = { Range: window.Range, Effect: window.Effect };
         this.bindEvents();
         this.showScreen('menu');
@@ -327,6 +329,12 @@ const Game = {
     // 战斗阶段
     // ========================================
     startBattle() {
+        // 将地形数据和模块引用复制到 state，供 effect.js 使用
+        this.state.TERRAIN = window.TERRAIN;
+        this.state.BOARD_SIZE = window.BOARD_SIZE;
+        this.state.Effect = window.Effect;
+        this.state.Range = window.Range;
+
         // 初始化所有单位的被动技能效果
         this.state.units.forEach(u => {
             this.initPassiveSkills(u);
@@ -767,12 +775,12 @@ const Game = {
             this.addLungeAnimation(attacker, unit);
             let extraActionGranted = false;
 
-            if (result.type === 'dodge') {
+            if (result && result.type === 'dodge') {
                 this.state.logs.push(`${unit.name} 闪避了攻击！`);
                 this.showFloatingText(unit.x, unit.y, '闪避', 'dodge');
-            } else {
+            } else if (result) {
                 this.addHitAnimation(unit);
-                this.showFloatingText(unit.x, unit.y, `-${result.damage}`, 'damage');
+                this.showFloatingText(unit.x, unit.y, `-${result.damage || 0}`, 'damage');
                 if (unit.dead) {
                     this.state.logs.push(`${attacker.name} 击杀 ${unit.name}`);
                     this.addDeathAnimation(unit);
@@ -780,11 +788,11 @@ const Game = {
                         extraActionGranted = true;
                     }
                 } else {
-                    this.state.logs.push(`${attacker.name} 攻击 ${unit.name} -${result.damage}`);
+                    this.state.logs.push(`${attacker.name} 攻击 ${unit.name} -${result.damage || 0}`);
                 }
             }
 
-            if (result.counter) {
+            if (result && result.counter) {
                 this.state.logs.push(`${unit.name} 反击 -${result.counter}`);
                 this.showFloatingText(attacker.x, attacker.y, `反击-${result.counter}`, 'counter');
                 this.addHitAnimation(attacker);
