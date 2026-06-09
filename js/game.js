@@ -1,5 +1,5 @@
 // ================================
-// 游戏逻辑
+// 游戏逻辑 - 软编码技能系统
 // ================================
 const Game = {
     state: {
@@ -8,8 +8,8 @@ const Game = {
         turn: 1,
         selectedUnit: null,
         currentSkill: null,
-        skillPhase: null,      // null | 'step1' | 'step2' - 多步技能当前阶段
-        skillTarget: null,     // 第一步选中的目标
+        skillPhase: null,
+        skillTarget: null,
         highlights: [],
         logs: [],
         units: [],
@@ -21,7 +21,6 @@ const Game = {
 
     init() {
         console.log('[Game] init called');
-        // 把 Range 和 Effect 挂载到 gameState 供使用
         this.state._modules = { Range: window.Range, Effect: window.Effect };
         this.bindEvents();
         this.showScreen('menu');
@@ -29,44 +28,39 @@ const Game = {
     },
 
     showScreen(screenId) {
-        console.log('[Game] showScreen called with:', screenId);
         const screens = document.querySelectorAll('.screen');
-        console.log('[Game] All screens found:', screens);
         screens.forEach(s => s.classList.remove('active'));
         const targetScreen = document.getElementById(`${screenId}-screen`);
-        console.log('[Game] Target screen:', targetScreen);
         if (targetScreen) {
             targetScreen.classList.add('active');
         }
     },
 
     bindEvents() {
-        console.log('[Game] bindEvents called');
         const pvpBtn = document.getElementById('pvp-btn');
         const pveBtn = document.getElementById('pve-btn');
         const customBtn = document.getElementById('custom-btn');
-        console.log('[Game] Buttons found:', {pvpBtn, pveBtn, customBtn});
-        
+
         if (pvpBtn) {
             pvpBtn.addEventListener('click', () => {
-                console.log('[Game] pvp-btn clicked');
                 this.state.mode = 'pvp';
                 this.startSelect();
             });
         }
         if (pveBtn) {
             pveBtn.addEventListener('click', () => {
-                console.log('[Game] pve-btn clicked');
                 this.state.mode = 'pve';
                 this.startSelect();
             });
         }
         if (customBtn) customBtn.addEventListener('click', () => alert('DIY武将功能即将开放！'));
+
         const confirmSelect = document.getElementById('confirm-select');
         const endTurn = document.getElementById('end-turn');
         const restartBtn = document.getElementById('restart-btn');
         const closeDetail = document.getElementById('close-detail');
         const detailPanel = document.getElementById('detail-panel');
+
         if (confirmSelect) confirmSelect.addEventListener('click', () => this.confirmSelect());
         if (endTurn) endTurn.addEventListener('click', () => this.endTurn());
         if (restartBtn) restartBtn.addEventListener('click', () => this.resetGame());
@@ -76,7 +70,7 @@ const Game = {
                 if (e.target.id === 'detail-panel') this.hideDetail();
             });
         }
-        // 棋盘大小滑块
+
         const wSlider = document.getElementById('cell-width');
         const hSlider = document.getElementById('cell-height');
         if (wSlider) {
@@ -95,8 +89,10 @@ const Game = {
         }
     },
 
+    // ========================================
+    // 选将阶段
+    // ========================================
     startSelect() {
-        console.log('[Game] startSelect called, mode:', this.state.mode);
         this.state.currentPlayer = 1;
         this.state.players[1].generals = [];
         this.state.players[2].generals = [];
@@ -105,13 +101,10 @@ const Game = {
     },
 
     renderSelect() {
-        console.log('[Game] renderSelect called');
-        console.log('[Game] GENERALS length:', window.GENERALS.length);
         const title = document.getElementById('select-title');
         const count = document.getElementById('select-count');
         const list = document.getElementById('generals-list');
         const confirm = document.getElementById('confirm-select');
-        console.log('[Game] Elements found:', {title, count, list, confirm});
 
         title.textContent = `${this.state.currentPlayer === 1 ? '红方' : '蓝方'} 选将`;
         const selected = this.state.players[this.state.currentPlayer].generals;
@@ -152,7 +145,9 @@ const Game = {
                 if (g) {
                     const moveRangeStr = Array.isArray(g.moveRange) ? g.moveRange.join(', ') : g.moveRange;
                     const attackRangeStr = Array.isArray(g.attackRange) ? g.attackRange.join(', ') : g.attackRange;
-                    const skillsDesc = g.skills.map(s => `${s.name}(${s.type === 'passive' ? '被动' : '主动'}${s.energyCost ? ` 能量:${s.energyCost}` : ''}): ${s.desc}`).join('\n');
+                    const skillsDesc = g.skills.map(s =>
+                        `${s.name}(${s.type === 'passive' ? '被动' : '主动'}${s.energyCost ? ` 能量:${s.energyCost}` : ''}): ${s.desc}`
+                    ).join('\n');
                     alert(`${g.name}\nHP: ${g.hp} | 攻: ${g.atk} | 防: ${g.def} | 移: ${g.mov}\n移动范围: ${moveRangeStr}\n攻击范围: ${attackRangeStr}\n\n技能:\n${skillsDesc}`);
                 }
             };
@@ -178,6 +173,9 @@ const Game = {
         }
     },
 
+    // ========================================
+    // 布阵阶段
+    // ========================================
     startDeploy() {
         this.state.currentPlayer = 1;
         this.state.players[1].deployed = [];
@@ -272,22 +270,8 @@ const Game = {
         if (deployed.find(d => d.generalId === generals[generalIdx].id)) return;
 
         const general = generals[generalIdx];
+        const unit = this.createUnitFromGeneral(general, player, x, y);
 
-        const unit = {
-            id: Date.now() + Math.random(),
-            generalId: general.id,
-            generalData: general,
-            name: general.name,
-            player: player,
-            x, y,
-            hp: general.hp, maxHp: general.hp,
-            atk: general.atk, def: general.def, mov: general.mov,
-            moveRange: general.moveRange || '+' + general.mov,
-            attackRange: general.attackRange || '+1',
-            energy: 0,
-            skills: general.skills ? [...general.skills] : [],
-            dead: false, moved: false, attacked: false, usedSkill: false
-        };
         this.state.units.push(unit);
         deployed.push({ generalId: general.id, unitId: unit.id });
         this.state.players[player].toDeploy = null;
@@ -319,35 +303,22 @@ const Game = {
             const posIdx = Math.floor(Math.random() * available.length);
             const pos = available[posIdx];
             available.splice(posIdx, 1);
-            const unit = {
-                id: Date.now() + i + Math.random(),
-                generalId: g.id,
-                generalData: g,
-                name: g.name,
-                player: 2,
-                x: pos.x, y: pos.y,
-                hp: g.hp, maxHp: g.hp,
-                atk: g.atk, def: g.def, mov: g.mov,
-                moveRange: g.moveRange || '+' + g.mov,
-                attackRange: g.attackRange || '+1',
-                energy: 0,
-                skills: g.skills ? [...g.skills] : [],
-                dead: false, moved: false, attacked: false, usedSkill: false
-            };
+            const unit = this.createUnitFromGeneral(g, 2, pos.x, pos.y);
             this.state.units.push(unit);
             this.state.players[2].deployed.push({ generalId: g.id, unitId: unit.id });
         });
         this.startBattle();
     },
 
+    // ========================================
+    // 战斗阶段
+    // ========================================
     startBattle() {
+        // 初始化所有单位的被动技能效果
         this.state.units.forEach(u => {
-            if (u.skills) {
-                u.skills.filter(s => s.type === 'passive').forEach(s => {
-                    if (s.content) s.content(u, this.state);
-                });
-            }
+            this.initPassiveSkills(u);
         });
+
         this.state.currentPlayer = 1;
         this.state.turn = 1;
         this.state.selectedUnit = null;
@@ -358,6 +329,38 @@ const Game = {
         this.state.logs = ['战斗开始'];
         this.renderBattle();
         this.showScreen('battle');
+    },
+
+    // 初始化被动技能效果
+    initPassiveSkills(unit) {
+        if (!unit.skills) return;
+        const passiveSkills = unit.skills.filter(s => s.type === 'passive');
+        passiveSkills.forEach(skill => {
+            if (skill.effects) {
+                skill.effects.forEach(effect => {
+                    window.Effect.executeEffect(effect, unit, unit, this.state);
+                });
+            }
+        });
+    },
+
+    // 从武将数据创建战斗单位
+    createUnitFromGeneral(general, player, x, y) {
+        return {
+            id: Date.now() + Math.random(),
+            generalId: general.id,
+            generalData: general,
+            name: general.name,
+            player: player,
+            x, y,
+            hp: general.hp, maxHp: general.hp,
+            atk: general.atk, def: general.def, mov: general.mov,
+            moveRange: general.moveRange || '+' + general.mov,
+            attackRange: general.attackRange || '+1',
+            energy: 0,
+            skills: general.skills ? [...general.skills] : [],
+            dead: false, moved: false, attacked: false, usedSkill: false
+        };
     },
 
     renderBattle() {
@@ -416,6 +419,7 @@ const Game = {
         const skills = u.skills || [];
         const activeSkills = skills.filter(s => s.type === 'active');
         const passiveSkills = skills.filter(s => s.type === 'passive');
+
         container.innerHTML = `
             <div class="sel-info-skills">
                 ${activeSkills.map(s => {
@@ -437,6 +441,7 @@ const Game = {
                 `).join('')}
             </div>
         `;
+
         container.querySelectorAll('.sel-skill-btn').forEach(btn => {
             btn.onclick = (e) => {
                 e.stopPropagation();
@@ -447,15 +452,20 @@ const Game = {
                     this.state.logs.push(`${u.name} 处于沉默状态，无法使用技能`);
                     return;
                 }
-                if (skill && (!isCharged || u.energy >= skill.energyCost) && !u.usedSkill) this.selectSkill(skill);
+                if (skill && (!isCharged || u.energy >= skill.energyCost) && !u.usedSkill) {
+                    this.selectSkill(skill);
+                }
             };
         });
+
         container.querySelectorAll('.sel-skill-info').forEach(el => {
             el.onclick = (e) => {
                 e.stopPropagation();
                 const sid = e.currentTarget.dataset.skill;
                 const skill = u.skills.find(s => s.id === sid);
-                if (skill) alert(`${skill.name}\n类型: ${skill.type === 'passive' ? '被动' : '主动'}\n范围: ${skill.range || '-'}\n能量: ${skill.energyCost || 0}\n${skill.desc}`);
+                if (skill) {
+                    alert(`${skill.name}\n类型: ${skill.type === 'passive' ? '被动' : '主动'}\n范围: ${skill.range || '-'}\n能量: ${skill.energyCost || 0}\n${skill.desc}`);
+                }
             };
         });
     },
@@ -561,9 +571,9 @@ const Game = {
         document.getElementById('detail-panel').classList.add('hidden');
     },
 
-    // ================================
+    // ========================================
     // 特效系统
-    // ================================
+    // ========================================
     showFloatingText(x, y, text, type) {
         const cell = document.querySelector(`#battle-board .cell[data-x="${x}"][data-y="${y}"]`);
         if (!cell) return;
@@ -620,7 +630,6 @@ const Game = {
 
     getStatusTags(unit) {
         const tags = [];
-        // debuffs
         if (unit.debuffs) {
             unit.debuffs.forEach(d => {
                 if (d.type === 'poison') tags.push({ cls: 'status-poison', text: '毒' });
@@ -632,9 +641,7 @@ const Game = {
                 if (d.type === 'silence') tags.push({ cls: 'status-silence', text: '默' });
             });
         }
-        // 威临减攻
         if (unit._weiLinDebuffed) tags.push({ cls: 'status-weilin', text: '威' });
-        // buffs
         if (unit.buffs) {
             unit.buffs.forEach(b => {
                 if (b.stat === 'atk') tags.push({ cls: 'status-buff-atk', text: '攻' });
@@ -644,9 +651,9 @@ const Game = {
         return tags.map(t => `<span class="unit-status ${t.cls}">${t.text}</span>`).join('');
     },
 
-    // ================================
+    // ========================================
     // 战斗点击处理
-    // ================================
+    // ========================================
     handleBattleClick(x, y) {
         const unit = this.getUnit(x, y);
         const hlMove = this.state.highlights.find(h => h.x === x && h.y === y && h.type === 'move');
@@ -664,7 +671,6 @@ const Game = {
                 return;
             }
 
-            // 验证落点是否在目标周围范围内且为空
             const landingRange = window.Range.parse(skill.step2Range || 'r2', target.x, target.y, null, window.TERRAIN);
             const valid = landingRange.find(p => p.x === x && p.y === y);
             if (!valid || this.getUnit(x, y)) {
@@ -672,35 +678,16 @@ const Game = {
                 return;
             }
 
-            // 执行技能
+            // 消耗能量
             if (skill.energyCost !== undefined) attacker.energy -= skill.energyCost;
-            const result = skill.content(attacker, target, this.state, { x, y });
 
-            // 显示效果
-            let extraActionGranted = false;
-            this.addHitAnimation(target);
-            if (target.dead) {
-                this.state.logs.push(`${attacker.name} 胆勇击杀 ${target.name}`);
-                this.showFloatingText(target.x, target.y, `-${result.damage}`, 'damage');
-                this.addDeathAnimation(target);
-                if (attacker._passive_changSheng && target.generalId) {
-                    extraActionGranted = true;
-                }
-            } else {
-                this.state.logs.push(`${attacker.name} 胆勇 ${target.name} -${result.damage}`);
-                this.showFloatingText(target.x, target.y, `-${result.damage}`, 'damage');
-            }
+            // 执行技能效果
+            this.state._target = target;
+            const result = window.Effect.executeEffects(skill.effects, attacker, target, this.state, { x, y });
+            this.state._target = null;
 
-            if (extraActionGranted) {
-                window.Effect.grantExtraAction(attacker);
-                this.state.logs.push(`${attacker.name} 常胜！获得额外行动`);
-                this.showFloatingText(attacker.x, attacker.y, '常胜！', 'heal');
-            } else {
-                attacker.usedSkill = true;
-            }
-            this.cancelSkill();
-            this.checkWin();
-            this.renderBattle();
+            // 处理结果
+            this.handleSkillResult(skill, attacker, target, result, { x, y });
             return;
         }
 
@@ -710,11 +697,20 @@ const Game = {
             mover.x = x;
             mover.y = y;
             mover.moved = true;
-            this.clearHighlights();
-            this.state.logs.push(`${mover.name} 移动`);
-            // 技能级充能：afterMove / afterAction
+
+            // 触发充能
             this.triggerSkillCharge(mover, 'afterMove');
             this.triggerSkillCharge(mover, 'afterAction');
+
+            // 被动效果：铁骑 - 每移动一次攻击力+5
+            if (mover._passive_tianTi) {
+                if (!mover.buffs) mover.buffs = [];
+                mover.buffs.push({ stat: 'atk', value: 5, turns: 1 });
+                mover.atk += 5;
+            }
+
+            this.clearHighlights();
+            this.state.logs.push(`${mover.name} 移动`);
             this.renderBattle();
             return;
         }
@@ -725,6 +721,7 @@ const Game = {
             const result = window.Effect.damage(attacker, unit, attacker.atk);
             this.addLungeAnimation(attacker, unit);
             let extraActionGranted = false;
+
             if (result.type === 'dodge') {
                 this.state.logs.push(`${unit.name} 闪避了攻击！`);
                 this.showFloatingText(unit.x, unit.y, '闪避', 'dodge');
@@ -734,36 +731,37 @@ const Game = {
                 if (unit.dead) {
                     this.state.logs.push(`${attacker.name} 击杀 ${unit.name}`);
                     this.addDeathAnimation(unit);
-                    // 常胜被动
-                    if (attacker._passive_changSheng && unit.generalId) {
+                    if (attacker._passive_changSheng) {
                         extraActionGranted = true;
                     }
                 } else {
                     this.state.logs.push(`${attacker.name} 攻击 ${unit.name} -${result.damage}`);
                 }
             }
+
             if (result.counter) {
                 this.state.logs.push(`${unit.name} 反击 -${result.counter}`);
                 this.showFloatingText(attacker.x, attacker.y, `反击-${result.counter}`, 'counter');
                 this.addHitAnimation(attacker);
             }
+
             if (extraActionGranted) {
                 window.Effect.grantExtraAction(attacker);
                 this.state.logs.push(`${attacker.name} 常胜！获得额外行动`);
                 this.showFloatingText(attacker.x, attacker.y, '常胜！', 'heal');
             } else {
                 attacker.attacked = true;
-                // 技能级充能：afterAttack / afterAction
                 this.triggerSkillCharge(attacker, 'afterAttack');
                 this.triggerSkillCharge(attacker, 'afterAction');
             }
+
             this.clearHighlights();
             this.checkWin();
             this.renderBattle();
             return;
         }
 
-        // 单步技能执行（点击高亮的敌人）
+        // 技能执行
         if (hlSkill && this.state.selectedUnit && this.state.currentSkill) {
             const skill = this.state.currentSkill;
             const attacker = this.state.selectedUnit;
@@ -774,7 +772,6 @@ const Game = {
                     this.state.skillTarget = unit;
                     this.state.skillPhase = 'step2';
                     this.state.highlights = [];
-                    // 显示目标周围的可选落点
                     const landingRange = window.Range.parse(skill.step2Range || 'r2', unit.x, unit.y, null, TERRAIN);
                     landingRange.forEach(p => {
                         if (!this.getUnit(p.x, p.y)) {
@@ -787,132 +784,16 @@ const Game = {
                 return;
             }
 
-            // 普通单步技能
+            // 消耗能量
             if (skill.energyCost !== undefined) attacker.energy -= skill.energyCost;
-            if (skill.category === 'summon') {
-                if (!this.getUnit(x, y)) {
-                    skill.content(attacker, { x, y }, this.state);
-                    this.state.logs.push(`${attacker.name} 召唤 ${window.SUMMONS[skill.summon].name}`);
-                }
-            } else if (unit && unit.player !== attacker.player) {
-                const result = skill.content(attacker, unit, this.state);
-                if (result.type === 'aoe') {
-                    this.state.logs.push(`${attacker.name} ${skill.name} AOE伤害`);
-                    result.targets.forEach(t => {
-                        const tUnit = this.state.units.find(u => u.name === t.name && !u.dead);
-                        if (tUnit) {
-                            if (t.type === 'dodge') this.showFloatingText(tUnit.x, tUnit.y, '闪避', 'dodge');
-                            else {
-                                this.showFloatingText(tUnit.x, tUnit.y, `-${t.damage}`, 'damage');
-                                this.addHitAnimation(tUnit);
-                                if (tUnit.dead) this.addDeathAnimation(tUnit);
-                            }
-                        }
-                        if (t.type === 'dodge') this.state.logs.push(`  ${t.name} 闪避`);
-                        else this.state.logs.push(`  ${t.name} -${t.damage}`);
-                    });
-                } else if (result.type === 'pierce') {
-                    this.state.logs.push(`${attacker.name} ${skill.name} 穿透攻击`);
-                    result.targets.forEach(t => {
-                        const tUnit = this.state.units.find(u => u.name === t.name && !u.dead);
-                        if (tUnit) {
-                            if (t.type === 'dodge') this.showFloatingText(tUnit.x, tUnit.y, '闪避', 'dodge');
-                            else {
-                                this.showFloatingText(tUnit.x, tUnit.y, `-${t.damage}`, 'damage');
-                                this.addHitAnimation(tUnit);
-                                if (tUnit.dead) this.addDeathAnimation(tUnit);
-                            }
-                        }
-                        if (t.type === 'dodge') this.state.logs.push(`  ${t.name} 闪避`);
-                        else this.state.logs.push(`  ${t.name} -${t.damage}`);
-                    });
-                } else if (result.type === 'multishot') {
-                    this.addHitAnimation(unit);
-                    this.state.logs.push(`${attacker.name} ${skill.name} 射击${result.hits}次，总计${result.damage}伤害`);
-                    this.showFloatingText(unit.x, unit.y, `-${result.damage}`, 'damage');
-                    if (unit.dead) this.addDeathAnimation(unit);
-                } else if (result.type === 'cone') {
-                    this.state.logs.push(`${attacker.name} ${skill.name} 扇形攻击`);
-                    result.targets.forEach(t => {
-                        const tUnit = this.state.units.find(u => u.name === t.name && !u.dead);
-                        if (tUnit) {
-                            if (t.type === 'dodge') this.showFloatingText(tUnit.x, tUnit.y, '闪避', 'dodge');
-                            else {
-                                this.showFloatingText(tUnit.x, tUnit.y, `-${t.damage}`, 'damage');
-                                this.addHitAnimation(tUnit);
-                                if (tUnit.dead) this.addDeathAnimation(tUnit);
-                            }
-                        }
-                        if (t.type === 'dodge') this.state.logs.push(`  ${t.name} -${t.damage}`);
-                    });
-                } else if (result.type === 'damage') {
-                    this.addHitAnimation(unit);
-                    let extraActionGranted = false;
-                    if (unit.dead) {
-                        this.state.logs.push(`${attacker.name} 击杀 ${unit.name}`);
-                        this.showFloatingText(unit.x, unit.y, `-${result.damage}`, 'damage');
-                        this.addDeathAnimation(unit);
-                        if (attacker._passive_changSheng && unit.generalId) {
-                            extraActionGranted = true;
-                        }
-                    } else {
-                        this.state.logs.push(`${attacker.name} ${skill.name} ${unit.name} -${result.damage}`);
-                        this.showFloatingText(unit.x, unit.y, `-${result.damage}`, 'damage');
-                    }
-                    if (extraActionGranted) {
-                        window.Effect.grantExtraAction(attacker);
-                        this.state.logs.push(`${attacker.name} 常胜！获得额外行动`);
-                        this.showFloatingText(attacker.x, attacker.y, '常胜！', 'heal');
-                    } else {
-                        attacker.usedSkill = true;
-                    }
-                    this.cancelSkill();
-                    this.checkWin();
-                    this.renderBattle();
-                    return;
-                } else if (result.type === 'poison') {
-                    this.state.logs.push(`${attacker.name} 使 ${unit.name} 中毒`);
-                    this.showFloatingText(unit.x, unit.y, '中毒', 'damage');
-                } else if (result.type === 'stun') {
-                    this.state.logs.push(`${attacker.name} 眩晕 ${unit.name}`);
-                    this.showFloatingText(unit.x, unit.y, '眩晕', 'damage');
-                } else if (result.type === 'slow') {
-                    this.state.logs.push(`${attacker.name} 减速 ${unit.name}`);
-                    this.showFloatingText(unit.x, unit.y, '减速', 'damage');
-                } else if (result.type === 'burn') {
-                    this.state.logs.push(`${attacker.name} 使 ${unit.name} 燃烧`);
-                    this.showFloatingText(unit.x, unit.y, '燃烧', 'damage');
-                } else if (result.type === 'confuse') {
-                    this.state.logs.push(`${attacker.name} 使 ${unit.name} 混乱`);
-                    this.showFloatingText(unit.x, unit.y, '混乱', 'damage');
-                } else if (result.type === 'shredDef') {
-                    this.state.logs.push(`${attacker.name} 破甲 ${unit.name}`);
-                    this.showFloatingText(unit.x, unit.y, '破甲', 'damage');
-                } else if (result.type === 'shuiYan') {
-                    this.addHitAnimation(unit);
-                    const riverText = result.riverBonus ? '（河流翻倍）' : '';
-                    if (unit.dead) {
-                        this.state.logs.push(`${attacker.name} 水淹击杀 ${unit.name}${riverText}`);
-                        this.showFloatingText(unit.x, unit.y, `-${result.damage}`, 'damage');
-                        this.addDeathAnimation(unit);
-                    } else {
-                        this.state.logs.push(`${attacker.name} 水淹 ${unit.name} -${result.damage}${riverText}`);
-                        this.showFloatingText(unit.x, unit.y, `-${result.damage}`, 'damage');
-                    }
-                    if (result.slow) {
-                        this.showFloatingText(unit.x, unit.y, '减速', 'damage');
-                    }
-                } else if (result.heal) {
-                    this.state.logs.push(`${attacker.name} ${skill.name} 治疗${result.heal}`);
-                    this.showFloatingText(attacker.x, attacker.y, `+${result.heal}`, 'heal');
-                } else if (result.type === 'summon') {
-                    this.state.logs.push(`${attacker.name} 召唤 ${result.unit.name}`);
-                }
-            }
-            attacker.usedSkill = true;
-            this.cancelSkill();
-            this.checkWin();
-            this.renderBattle();
+
+            // 执行技能效果
+            this.state._target = unit;
+            const result = window.Effect.executeEffects(skill.effects, attacker, unit, this.state);
+            this.state._target = null;
+
+            // 处理结果
+            this.handleSkillResult(skill, attacker, unit, result);
             return;
         }
 
@@ -935,6 +816,78 @@ const Game = {
         this.renderBattle();
     },
 
+    // 处理技能执行结果
+    handleSkillResult(skill, attacker, target, result, extraData = {}) {
+        if (!result) {
+            this.cancelSkill();
+            this.checkWin();
+            this.renderBattle();
+            return;
+        }
+
+        let extraActionGranted = false;
+
+        // 显示结果
+        if (result.type === 'aoe' || result.type === 'pierce' || result.type === 'cone') {
+            this.state.logs.push(`${attacker.name} ${skill.name}`);
+            if (result.targets) {
+                result.targets.forEach(t => {
+                    const tUnit = this.state.units.find(u => u.name === t.name && !u.dead);
+                    if (tUnit) {
+                        if (t.type === 'dodge') {
+                            this.showFloatingText(tUnit.x, tUnit.y, '闪避', 'dodge');
+                        } else {
+                            this.showFloatingText(tUnit.x, tUnit.y, `-${t.damage}`, 'damage');
+                            this.addHitAnimation(tUnit);
+                            if (tUnit.dead) this.addDeathAnimation(tUnit);
+                        }
+                    }
+                    if (t.type === 'dodge') {
+                        this.state.logs.push(`  ${t.name} 闪避`);
+                    } else {
+                        this.state.logs.push(`  ${t.name} -${t.damage}`);
+                    }
+                });
+            }
+        } else if (result.type === 'damage' || result.type === 'combined') {
+            if (target.dead) {
+                this.state.logs.push(`${attacker.name} 击杀 ${target.name}`);
+                this.addHitAnimation(target);
+                this.showFloatingText(target.x, target.y, `-${result.damage || 0}`, 'damage');
+                this.addDeathAnimation(target);
+                if (attacker._passive_changSheng) {
+                    extraActionGranted = true;
+                }
+            } else {
+                this.addHitAnimation(target);
+                this.showFloatingText(target.x, target.y, `-${result.damage || 0}`, 'damage');
+                this.state.logs.push(`${attacker.name} ${skill.name} ${target.name} -${result.damage || 0}`);
+            }
+            if (result.counter) {
+                this.state.logs.push(`${target.name} 反击 -${result.counter}`);
+                this.showFloatingText(attacker.x, attacker.y, `反击-${result.counter}`, 'counter');
+                this.addHitAnimation(attacker);
+            }
+        } else if (result.type === 'heal') {
+            this.showFloatingText(attacker.x, attacker.y, `+${result.heal}`, 'heal');
+            this.state.logs.push(`${attacker.name} ${skill.name} 治疗${result.heal}`);
+        } else if (result.type === 'summon') {
+            this.state.logs.push(`${attacker.name} ${skill.name} 召唤 ${result.unit.name}`);
+        }
+
+        if (extraActionGranted) {
+            window.Effect.grantExtraAction(attacker);
+            this.state.logs.push(`${attacker.name} 常胜！获得额外行动`);
+            this.showFloatingText(attacker.x, attacker.y, '常胜！', 'heal');
+        } else {
+            attacker.usedSkill = true;
+        }
+
+        this.cancelSkill();
+        this.checkWin();
+        this.renderBattle();
+    },
+
     selectSkill(skill) {
         if (!this.state.selectedUnit) return;
         this.state.currentSkill = skill;
@@ -951,7 +904,7 @@ const Game = {
                     this.state.highlights.push({ x: p.x, y: p.y, type: 'skill' });
                 }
             });
-            this.state.logs.push(`${u.name} 选择胆勇目标...`);
+            this.state.logs.push(`${u.name} 选择${skill.name}目标...`);
             this.renderBattle();
             return;
         }
@@ -959,6 +912,7 @@ const Game = {
         // 普通单步技能
         this.state.skillPhase = null;
         const range = window.Range.parse(skill.range, u.x, u.y, window.BLOCKING_TERRAIN_ATTACK, window.TERRAIN);
+
         if (skill.category === 'summon') {
             range.forEach(p => {
                 if (!this.getUnit(p.x, p.y)) this.state.highlights.push({ x: p.x, y: p.y, type: 'skill' });
@@ -987,6 +941,7 @@ const Game = {
         this.state.units.forEach(u => {
             if (!u.dead) blockedSet.add(`${u.x},${u.y}`);
         });
+
         if (!unit.moved) {
             const moveRange = window.Range.parseBlocked(unit.moveRange || '+' + unit.mov, unit.x, unit.y, blockedSet, window.BLOCKING_TERRAIN_MOVE, window.TERRAIN);
             moveRange.forEach(p => {
@@ -995,6 +950,7 @@ const Game = {
                 }
             });
         }
+
         if (!unit.attacked) {
             const attackRange = window.Range.parseBlocked(unit.attackRange || '+1', unit.x, unit.y, blockedSet, window.BLOCKING_TERRAIN_ATTACK, window.TERRAIN);
             attackRange.forEach(p => {
@@ -1012,22 +968,47 @@ const Game = {
         this.state.highlights = [];
     },
 
+    // ========================================
+    // 回合结束
+    // ========================================
     endTurn() {
         this.state.units.forEach(u => {
-            u.moved = false; u.attacked = false; u.usedSkill = false;
+            u.moved = false;
+            u.attacked = false;
+            u.usedSkill = false;
+
             if (!u.dead) {
-                // 技能级 onTurn 充能
+                // 被动效果：观星 - 每回合开始时治疗友方
+                if (u._passive_guanChuan) {
+                    this.state.units.forEach(ally => {
+                        if (!ally.dead && ally.player === u.player && ally.hp < ally.maxHp) {
+                            const heal = 10;
+                            ally.hp = Math.min(ally.maxHp, ally.hp + heal);
+                            this.state.logs.push(`${ally.name} 观星恢复 +${heal}`);
+                        }
+                    });
+                }
+
+                // 触发充能
                 this.triggerSkillCharge(u, 'onTurn');
             }
+
+            // 刷新buff
             if (u.buffs) {
                 const newBuffs = [];
                 u.buffs.forEach(b => {
                     b.turns--;
                     if (b.turns > 0) newBuffs.push(b);
-                    else u[b.stat] -= b.value;
+                    else {
+                        if (b.stat === 'atk' || b.stat === 'def') {
+                            u[b.stat] -= b.value;
+                        }
+                    }
                 });
                 u.buffs = newBuffs;
             }
+
+            // 刷新debuff
             if (u.debuffs) {
                 const newDebuffs = [];
                 u.debuffs.forEach(d => {
@@ -1042,8 +1023,9 @@ const Game = {
                             this.state.logs.push(`${u.name} 燃烧 -${d.damage}`);
                         }
                     }
-                    if (d.turns > 0) newDebuffs.push(d);
-                    else {
+                    if (d.turns > 0) {
+                        newDebuffs.push(d);
+                    } else {
                         if (d.type === 'slow') u.mov = d.originalMov || u.mov;
                         if (d.type === 'shredDef') u.def = d.originalDef || u.def;
                         if (d.type === 'confuse') {
@@ -1058,6 +1040,8 @@ const Game = {
                 });
                 u.debuffs = newDebuffs;
             }
+
+            // 眩晕状态
             if (u.stunned && u.stunned > 0) {
                 u.stunned--;
                 if (u.stunned <= 0) {
@@ -1065,26 +1049,17 @@ const Game = {
                     this.state.logs.push(`${u.name} 眩晕解除`);
                 }
             }
-            if (u.confused && u.confused > 0) {
-                u.confused--;
-                if (u.confused <= 0) u.confused = 0;
-            }
-            if (u.silenced && u.silenced > 0) {
-                u.silenced--;
-                if (u.silenced <= 0) {
-                    u.silenced = 0;
-                }
-            }
+            if (u.confused && u.confused > 0) u.confused--;
+            if (u.silenced && u.silenced > 0) u.silenced--;
         });
 
-        // 关羽【威临】光环扫描：+2范围减攻，+1范围沉默
+        // 关羽【威临】光环
         this.state.units.forEach(u => {
             if (u._passive_weiLin && !u.dead) {
                 const auraRange2 = window.Range.parse('+2', u.x, u.y, window.BLOCKING_TERRAIN_ATTACK, window.TERRAIN);
                 const auraRange1 = window.Range.parse('+1', u.x, u.y, window.BLOCKING_TERRAIN_ATTACK, window.TERRAIN);
                 this.state.units.forEach(enemy => {
                     if (enemy.dead || enemy.player === u.player) return;
-                    // +2范围减攻10
                     const inRange2 = auraRange2.find(p => p.x === enemy.x && p.y === enemy.y);
                     if (inRange2 && !enemy._weiLinDebuffed) {
                         enemy.atk = Math.max(1, enemy.atk - 10);
@@ -1093,7 +1068,6 @@ const Game = {
                         enemy.atk += 10;
                         enemy._weiLinDebuffed = false;
                     }
-                    // +1范围沉默
                     const inRange1 = auraRange1.find(p => p.x === enemy.x && p.y === enemy.y);
                     if (inRange1 && !enemy.silenced) {
                         window.Effect.silence(u, enemy, 1);
@@ -1101,6 +1075,7 @@ const Game = {
                 });
             }
         });
+
         this.state.selectedUnit = null;
         this.cancelSkill();
 
@@ -1150,20 +1125,35 @@ const Game = {
                 unit.attacked = true;
             }
         });
+
         this.checkWin();
 
         setTimeout(() => {
             this.state.units.forEach(u => {
                 u.moved = false; u.attacked = false; u.usedSkill = false;
-                if (!u.dead) {
-                    this.triggerSkillCharge(u, 'onTurn');
-                }
+                if (!u.dead) this.triggerSkillCharge(u, 'onTurn');
             });
             this.state.turn++;
             this.state.currentPlayer = 1;
             this.state.logs.push(`第${this.state.turn}回合 红方`);
             this.renderBattle();
         }, 300);
+    },
+
+    // 技能充能触发
+    triggerSkillCharge(unit, triggerType) {
+        if (unit.dead) return;
+        const skills = unit.skills || [];
+        let charged = false;
+        skills.forEach(s => {
+            if (s.chargeTrigger === triggerType) {
+                unit.energy += 1;
+                charged = true;
+            }
+        });
+        if (charged) {
+            this.showFloatingText(unit.x, unit.y, '+1能量', 'heal');
+        }
     },
 
     checkWin() {
@@ -1200,22 +1190,6 @@ const Game = {
 
     getUnit(x, y) {
         return this.state.units.find(u => u.x === x && u.y === y && !u.dead);
-    },
-
-    // 技能级充能触发
-    triggerSkillCharge(unit, triggerType) {
-        if (unit.dead) return;
-        const skills = unit.skills || [];
-        let charged = false;
-        skills.forEach(s => {
-            if (s.chargeTrigger === triggerType) {
-                unit.energy += 1;
-                charged = true;
-            }
-        });
-        if (charged) {
-            this.showFloatingText(unit.x, unit.y, '+1能量', 'heal');
-        }
     }
 };
 
