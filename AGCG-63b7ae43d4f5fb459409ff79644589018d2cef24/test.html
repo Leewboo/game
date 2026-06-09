@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>测试</title>
+    <style>
+        body { padding: 50px; font-family: sans-serif; }
+        button { padding: 20px 40px; font-size: 24px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>简单测试页面</h1>
+    <p>如果您能看到这个，说明服务器正常。</p>
+    <button id="test-btn">点我测试</button>
+    <div id="output"></div>
+
+    <script>
+        const btn = document.getElementById('test-btn');
+        const output = document.getElementById('output');
+        
+        btn.addEventListener('click', () => {
+            output.innerHTML += '<p>按钮被点击了！' + new Date().toLocaleTimeString() + '</p>';
+        });
+    </script>
+</body>
+</html>

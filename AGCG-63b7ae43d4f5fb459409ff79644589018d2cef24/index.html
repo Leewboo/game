@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全将战棋</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 主菜单 -->
+        <div id="menu-screen" class="screen active">
+            <div class="menu-container">
+                <h1 class="title">全将战棋</h1>
+                <p class="subtitle">世界策略对弈</p>
+                <div class="menu-buttons">
+                    <button class="menu-btn" id="pvp-btn">双人对战</button>
+                    <button class="menu-btn" id="pve-btn">人机对战</button>
+                    <button class="menu-btn" id="custom-btn">DIY武将</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 选择武将 -->
+        <div id="select-screen" class="screen">
+            <div class="select-container">
+                <div class="select-header">
+                    <span id="select-title">红方 选将</span>
+                    <span id="select-count">0/5</span>
+                </div>
+                <div id="generals-list" class="generals-grid"></div>
+                <button id="confirm-select" class="action-btn" disabled>确认</button>
+            </div>
+        </div>
+
+        <!-- 布阵界面 -->
+        <div id="deploy-screen" class="screen">
+            <div class="deploy-container">
+                <div class="deploy-header">
+                    <span id="deploy-title">红方 布阵</span>
+                    <span id="deploy-count">0/5</span>
+                </div>
+                <div class="board-wrapper">
+                    <div id="deploy-board" class="board"></div>
+                </div>
+                <div class="deploy-generals">
+                    <div id="deploy-list" class="mini-generals"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 战斗界面 -->
+        <div id="battle-screen" class="screen">
+            <div class="battle-container">
+                <!-- 顶栏 - 蓝方武将 -->
+                <div class="player-bar player-bar-top" id="player2-bar">
+                    <div class="player-label">蓝方</div>
+                    <div class="generals-bar" id="player2-generals"></div>
+                </div>
+                
+                <div class="battle-middle">
+                    <div class="battle-header">
+                        <span id="turn-info">第1回合 红方</span>
+                        <button id="end-turn" class="end-btn">结束回合</button>
+                    </div>
+                    <div class="board-size-controls">
+                        <label class="size-label">宽<input type="range" id="cell-width" min="28" max="80" value="52"><span id="cell-width-val">52</span></label>
+                        <label class="size-label">高<input type="range" id="cell-height" min="28" max="80" value="52"><span id="cell-height-val">52</span></label>
+                    </div>
+                    <div class="board-wrapper" id="board-wrapper">
+                        <div id="battle-board" class="board"></div>
+                    </div>
+                    <div id="log-panel" class="log-panel"></div>
+                </div>
+                
+                <!-- 选中武将信息栏 -->
+                <div id="selected-info" class="selected-info hidden"></div>
+                
+                <!-- 底栏 - 红方武将 -->
+                <div class="player-bar player-bar-bottom" id="player1-bar">
+                    <div class="generals-bar" id="player1-generals"></div>
+                    <div class="player-label">红方</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 结算界面 -->
+        <div id="gameover-screen" class="screen">
+            <div class="gameover-container">
+                <h1 id="winner-text">红方 胜利！</h1>
+                <button id="restart-btn" class="action-btn">再来一局</button>
+            </div>
+        </div>
+
+        <!-- 详细信息面板 -->
+        <div id="detail-panel" class="detail-panel hidden">
+            <div class="detail-content">
+                <button id="close-detail" class="close-btn">×</button>
+                <div id="detail-name" class="detail-name"></div>
+                <div id="detail-stats" class="detail-stats"></div>
+                <div id="detail-skills" class="detail-skills"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/range.js"></script>
+    <script src="js/effect.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
